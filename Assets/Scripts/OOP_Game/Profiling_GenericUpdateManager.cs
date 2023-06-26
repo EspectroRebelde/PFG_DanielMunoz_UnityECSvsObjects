@@ -1,0 +1,291 @@
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+using Sirenix.OdinInspector;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
+using UnityEditor;
+using UnityEngine.Jobs;
+using UnityEngine.Profiling;
+using UnityEngine.Serialization;
+
+namespace Scenes.OOP_Test.Profiling
+{
+    public class GenericUpdateManagerTest : MonoBehaviour
+{
+    // A dropdown with all the tags in the scene to choose from
+    [ValueDropdown("GetTags")] public string tagToSearchFor = "Enemy";
+    //private string[] GetTags() => UnityEditorInternal.InternalEditorUtility.tags;
+
+    public GameObject playerShip;
+
+    [Sirenix.OdinInspector.ReadOnly] public float2 worldSize = new float2(-1, -1);
+    private float2 playableArea = new float2(-1, -1);
+    public float2 borderThreshold = new float2(-1, -1);
+
+    private TransformAccessArray objects;
+
+    private WorldState worldState = WorldState.Refresh;
+
+    [System.Flags]
+    public enum WorldState
+    {
+        None = 0,
+        Refresh = 1 << 0,
+        Update = 1 << 1,
+        Running = 1 << 2,
+        UpdatePlayer = 1 << 3,
+    }
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        if (worldSize.x < 0 || worldSize.y < 0)
+        {
+            Debug.LogError("World size is not set!");
+#if UNITY_EDITOR
+            EditorApplication.isPlaying = false;
+#endif
+        }
+
+        // The borderThreshold is used to determine the playable area
+        // It should depend on the player's ship model bounds
+        borderThreshold = new float2(playerShip.GetComponent<Renderer>().bounds.size.x, playerShip.GetComponent<Renderer>().bounds.size.z);
+
+        playableArea = new float2((worldSize.x + borderThreshold.x) / 2, (worldSize.y + borderThreshold.y) / 2);
+        RefreshList();
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        // Refresh the list of objects to manage the bounds of
+        if ((worldState & WorldState.Refresh) != 0)
+        {
+            RefreshList();
+        }
+
+        // The player's ship has been updated so we need to update the playable area
+        if ((worldState & WorldState.UpdatePlayer) != 0)
+        {
+            borderThreshold = new float2(playerShip.GetComponent<Renderer>().bounds.size.x, playerShip.GetComponent<Renderer>().bounds.size.z);
+            playableArea = new float2((worldSize.x + borderThreshold.x) / 2, (worldSize.y + borderThreshold.y) / 2);
+        }
+
+        // Something is in need of update so we don't run the main script
+        if ((worldState & WorldState.Update) != 0)
+        {
+            return;
+        }
+
+        worldState |= WorldState.Running;
+
+        // Start a profiling sample
+        Profiler.BeginSample("Boundary Wrap");
+        // Stopwatch profiler
+        System.Diagnostics.Stopwatch stopwatchWrap = new System.Diagnostics.Stopwatch();
+        stopwatchWrap.Start();
+        // Create an IJobParallelForTransform to query all the objects and manage them
+        var job = new BoundaryWrap
+        {
+            playableAreaSizeX = playableArea.x,
+            playableAreaSizeY = playableArea.y,
+        };
+
+        // Schedule the job
+        JobHandle jobHandle = job.Schedule(objects);
+        jobHandle.Complete();
+        stopwatchWrap.Stop();
+        // End the profiling sample
+        Profiler.EndSample();
+        Debug.Log($"Boundary Wrap: {stopwatchWrap.ElapsedTicks}ticks");
+        
+        // Start a profiling sample
+        Profiler.BeginSample("Boundary Wrap Manual");
+        // Stopwatch profiler
+        System.Diagnostics.Stopwatch stopwatchWrapManual = new System.Diagnostics.Stopwatch();
+        stopwatchWrapManual.Start();
+        NativeArray<float3> positions = new NativeArray<float3>(objects.length, Allocator.TempJob);
+        for (int i = 0; i < objects.length; i++)
+        {
+            positions[i] = objects[i].position;
+        }
+        var job2 = new BoundaryWrapManual
+        {
+            playableAreaSizeX = playableArea.x,
+            playableAreaSizeY = playableArea.y,
+            positions = positions,
+        };
+        jobHandle = job2.Schedule(objects.length, 64);
+        jobHandle.Complete();
+        for (int i = 0; i < objects.length; i++)
+        {
+            objects[i].position = positions[i];
+        }
+        positions.Dispose();
+        stopwatchWrapManual.Stop();
+        // End the profiling sample
+        Profiler.EndSample();
+        Debug.Log($"Boundary Wrap Manual: {stopwatchWrapManual.ElapsedTicks}ticks");
+        
+        // Start a profiling sample
+        Profiler.BeginSample("Boundary Wrap Manual No-Burst");
+        // Stopwatch profiler
+        System.Diagnostics.Stopwatch stopwatchWrapManualNoBurst = new System.Diagnostics.Stopwatch();
+        stopwatchWrapManualNoBurst.Start();
+        for (int i = 0; i < objects.length; i++)
+        {
+            float3 position = objects[i].position;
+            // a - m * math.floor(a / m);
+            // a = position.x + playableAreaSizeX
+            // m = playableAreaSizeX * 2
+            // a / m = (position.x + playableAreaSizeX) / (playableAreaSizeX * 2)
+            position.x = (position.x + playableArea.x) - playableArea.x * 2 * math.floor((position.x + playableArea.x) / (playableArea.x * 2)) - playableArea.x;
+            position.z = (position.z + playableArea.y) - playableArea.y * 2 * math.floor((position.z + playableArea.y) / (playableArea.y * 2)) - playableArea.y;
+            
+            objects[i].position = position;
+        }
+        stopwatchWrapManualNoBurst.Stop();
+        // End the profiling sample
+        Profiler.EndSample();
+        Debug.Log($"Boundary Wrap Manual No-Burst: {stopwatchWrapManualNoBurst.ElapsedTicks}ticks");
+
+    }
+
+    // IJobParallelForTransform 
+    // It takes a list of objects and a float2 that represents the world size (already divided by 2)
+    // If the object is outside the world size, it will wrap it around to the other side
+    // If not, it will leave it be
+    [BurstCompile(FloatPrecision.Low, FloatMode.Fast, CompileSynchronously = true, Debug = true)]
+    private struct BoundaryWrap : IJobParallelForTransform
+    {
+        public float playableAreaSizeX;
+        public float playableAreaSizeY;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            // Get the position of the object
+            float3 position = transform.position;
+
+            // If the object is outside the world size, wrap it around to the other side
+            position.x = Mod(position.x + playableAreaSizeX, playableAreaSizeX * 2) - playableAreaSizeX;
+            position.z = Mod(position.z + playableAreaSizeY, playableAreaSizeY * 2) - playableAreaSizeY;
+
+            // Set the position of the object
+            transform.position = position;
+        }
+
+        // Module operation using the Unity.Mathematics library
+        // It's faster than the % operator
+        private static float Mod(float a, float m) => a - m * math.floor(a / m);
+
+    }
+    
+    [BurstCompile(FloatPrecision.Low, FloatMode.Fast, CompileSynchronously = true, Debug = true)]
+    private struct BoundaryWrapManual : IJobParallelFor
+    {
+        public float playableAreaSizeX;
+        public float playableAreaSizeY;
+        public NativeArray<float3> positions;
+
+        public void Execute(int index)
+        {
+            // Get the position of the object
+            float3 position = positions[index];
+
+            // If the object is outside the world size, wrap it around to the other side
+            position.x = Mod(position.x + playableAreaSizeX, playableAreaSizeX * 2) - playableAreaSizeX;
+            position.z = Mod(position.z + playableAreaSizeY, playableAreaSizeY * 2) - playableAreaSizeY;
+
+            // Set the position of the object
+            positions[index] = position;
+        }
+
+        // Module operation using the Unity.Mathematics library
+        // It's faster than the % operator
+        private static float Mod(float a, float m) => a - m * math.floor(a / m);
+    }
+
+    /*[BurstCompile(FloatPrecision.Low, FloatMode.Fast, CompileSynchronously = true, Debug = true)]
+    private struct BoundaryWrapGroup : IJobParallelFor
+    {
+        public NativeArray<BoudaryWrapGroupData> positions;
+        public void Execute(int index)
+        {
+            //
+        }
+        
+        public struct BoudaryWrapGroupData
+        {
+            public float4 positionXs;
+            public float4 positionYs;
+            public float4 positionZs;
+        }
+        
+        /*
+         NativeArray<BoudaryWrapGroupData> positions = new NativeArray<BoudaryWrapGroupData>(objects.length / 4, Allocator.TempJob);
+        BoudaryWrapGroupData boundaryWrapGroupData = new BoudaryWrapGroupData();
+        for (int i = 0; i < objects.length; i++)
+        {
+            // We add the position to the list of positions in groups of 4
+            // That means we load 4 positions, add them, reset the counter and repeat until we reach the end of the list
+            if (i % 4 == 0 && i != 0)
+            {
+                positions[i / 4] = boundaryWrapGroupData;
+                boundaryWrapGroupData = new BoudaryWrapGroupData();
+            }
+
+            boundaryWrapGroupData.positionXs[i % 4] = objects[i].position.x;
+            boundaryWrapGroupData.positionYs[i % 4] = objects[i].position.y;
+            boundaryWrapGroupData.positionZs[i % 4] = objects[i].position.z;
+
+            // If we reached the end of the list, we add the last group of positions
+            if (i == objects.length - 1)
+            {
+                positions[i / 4] = boundaryWrapGroupData;
+            }
+        }
+         
+    }
+    */
+
+    private void RefreshList()
+    {
+        // Get all the objects in the scene that have the tag we're looking for
+        List<GameObject> objectsInScene = new List<GameObject>(GameObject.FindGameObjectsWithTag(tagToSearchFor));
+
+        // Add the objects to the TransformAccessArray
+        objects = new TransformAccessArray(objectsInScene.Count);
+        foreach (GameObject obj in objectsInScene)
+        {
+            objects.Add(obj.transform);
+        }
+
+        // Set the Refresh flag to false
+        worldState &= ~WorldState.Refresh;
+    }
+
+    public void AddToList(List<GameObject> addedGameObjects)
+    {
+        // We process the new list and add it to the TransformAccessArray
+        foreach (GameObject obj in addedGameObjects)
+        {
+            objects.Add(obj.transform);
+        }
+    }
+
+    public void RemoveFromList(List<GameObject> removedGameObjects)
+    {
+        // We have to process the new list and remove it from the TransformAccessArray with RemoveAtSwapBack
+
+    }
+
+    public void RemoveFromList(GameObject removedGameObject)
+    {
+        // Find the index
+    }
+}
+}
