@@ -1,4 +1,6 @@
-This project is divided into a few sections that were developed over time.
+This project is part of my (Daniel Muñoz) final degree project for the videogame degree at San Jorge University.
+
+It is divided into a few sections that were developed over time.
 
 The main sections are:
 
