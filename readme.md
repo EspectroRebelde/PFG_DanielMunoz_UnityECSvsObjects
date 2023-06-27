@@ -2,8 +2,8 @@ This project is divided into a few sections that were developed over time.
 
 The main sections are:
 
-* **OOP**: This scene is the primary OOD prototype implementation, with the scene and scripts used for it in the [same folder](Assets/Scenes/OOP)
-* **DOP**: This scene is the primary DOD prototype implementation, with the scene and scripts used for it in the [same folder](Assets/Scenes/DOP)
+* **OOP**: This scene is the primary OOD prototype implementation, with the scene and scripts used for it in the [same folder](Assets/Scenes/OOP).
+* **DOP**: This scene is the primary DOD prototype implementation, with the scene and scripts used for it in the [same folder](Assets/Scenes/DOP).
 
 Apart from that, there are other implementations (for OOD prototyping) in the old [OOP_Game](Assets/Scripts/OOP_Game).
 
