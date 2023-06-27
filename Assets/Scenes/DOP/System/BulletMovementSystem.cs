@@ -9,6 +9,9 @@ using UnityEngine;
 
 namespace Scenes.DOP
 {
+    /// <summary>
+    /// Handles the movement of bullets and the collision with enemies.
+    /// </summary>
     [UpdateAfter(typeof(EnemyMovementSystem))]
     [UpdateBefore(typeof(TransformSystemGroup))]
     public partial struct BulletMovementsystem : ISystem
@@ -49,6 +52,10 @@ namespace Scenes.DOP
         }
     }
 
+    /// <summary>
+    /// Handles the movement of bullets.
+    /// <value>LocalTransform, speed, bulletTag</value>
+    /// </summary>
     // The implicit query of this IJobEntity matches all entities having LocalTransform, Velocity, and Ball components.
     [WithAll(typeof(BulletTag))]
     [BurstCompile]
@@ -66,6 +73,10 @@ namespace Scenes.DOP
         }
     }
     
+    /// <summary>
+    /// Handles the collision of bullets with enemies.
+    /// <value>Pierce, bulletTag</value>
+    /// </summary>
     [WithAll(typeof(BulletTag))]
     [BurstCompile]
     public partial struct BulletPierceCheck : IJobEntity

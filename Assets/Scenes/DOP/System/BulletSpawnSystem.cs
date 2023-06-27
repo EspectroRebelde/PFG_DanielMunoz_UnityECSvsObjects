@@ -8,6 +8,10 @@ using Random = Unity.Mathematics.Random;
 
 namespace Scenes.DOP
 {
+    /// <summary>
+    /// Handles the spawning of balls.
+    /// <value>LocalTransform, velocity</value>
+    /// </summary>
     // This UpdateBefore is necessary to ensure the balls get rendered in
     // the correct position for the frame in which they're spawned.
     [UpdateBefore(typeof(TransformSystemGroup))]

@@ -11,6 +11,9 @@ using Random = Unity.Mathematics.Random;
 
 namespace Scenes.DOP
 {
+    /// <summary>
+    /// Handles the spawning of enemies.
+    /// </summary>
     [UpdateBefore(typeof(TransformSystemGroup))]
     public partial struct EnemySpawnSystem : ISystem
     {
@@ -158,6 +161,10 @@ namespace Scenes.DOP
         }
     }
     
+    /// <summary>
+    /// Job that instantiates an enemy entity
+    /// <value></value>
+    /// </summary>
     // Job that instantiates an enemy entity 
     // Will be called by the EnemySpawnSystem for each enemy to spawn
     [BurstCompile]

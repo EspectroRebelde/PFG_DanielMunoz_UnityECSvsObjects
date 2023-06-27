@@ -8,6 +8,11 @@ using UnityEngine;
 
 namespace Scenes.DOP
 {
+    /// <summary>
+    /// Handles the movement of enemies.
+    /// Checks for collisions with bullets.
+    /// Manages health.
+    /// </summary>
     [UpdateBefore(typeof(TransformSystemGroup))]
     public partial struct EnemyMovementSystem : ISystem
     {
@@ -58,6 +63,11 @@ namespace Scenes.DOP
         }
     }
 
+    /// <summary>
+    /// Moves the enemy.
+    /// Checks for collisions with bullets.
+    /// <value>LocalTransform, health, enemyTag</value>
+    /// </summary>
     // The implicit query of this IJobEntity matches all entities having LocalTransform, Velocity, and Ball components.
     [WithAll(typeof(EnemyTag))]
     [BurstCompile]
@@ -125,6 +135,10 @@ namespace Scenes.DOP
         }
     }
     
+    /// <summary>
+    /// Checks if the enemy's health is below 0.
+    /// <value>Entity, health, enemyTag</value>
+    /// </summary>
     [WithAll(typeof(EnemyTag))]
     [BurstCompile]
     public partial struct EnemyHealthCheck : IJobEntity

@@ -38,6 +38,9 @@ namespace Scenes.DOP
     //
     // }
     
+    /// <summary>
+    /// Checks if a bullet is outside the camera and destroys it if it is.
+    /// </summary>
     public partial struct DestroyOffCamera : ISystemStartStop, ISystem
     {
         private float4x4 worldToCameraMatrix;
@@ -47,6 +50,13 @@ namespace Scenes.DOP
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<BulletConfig>();
+        }
+        
+        public void OnStartRunning(ref SystemState state)
+        {
+            var camera = Camera.main;
+            worldToCameraMatrix = camera.worldToCameraMatrix;
+            projectionMatrix = camera.projectionMatrix;
         }
         
         public void OnUpdate(ref SystemState state)
@@ -63,19 +73,16 @@ namespace Scenes.DOP
             
             job.ScheduleParallel();
         }
-
-        public void OnStartRunning(ref SystemState state)
-        {
-            var camera = Camera.main;
-            worldToCameraMatrix = camera.worldToCameraMatrix;
-            projectionMatrix = camera.projectionMatrix;
-        }
-
+        
         public void OnStopRunning(ref SystemState state)
         {
         }
     }
     
+    /// <summary>
+    /// Checks if a bullet is outside the camera and queue destroys it if it is.
+    /// <value>Entity, LocalTransform</value>
+    /// </summary>
     [WithAll(typeof(BulletTag))]
     [BurstCompile]
     public partial struct HandleOutsideCamera : IJobEntity

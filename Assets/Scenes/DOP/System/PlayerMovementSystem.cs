@@ -7,6 +7,9 @@ using UnityEngine;
 
 namespace Scenes.DOP
 {
+    /// <summary>
+    /// Handles the movement of the player.
+    /// </summary>
     [UpdateBefore(typeof(TransformSystemGroup))]
     public partial struct PlayerMovementSystem : ISystem
     {

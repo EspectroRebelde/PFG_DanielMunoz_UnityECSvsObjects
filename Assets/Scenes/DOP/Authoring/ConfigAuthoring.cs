@@ -7,6 +7,10 @@ using UnityEngine.Serialization;
 
 namespace Scenes.DOP
 {
+    /// <summary>
+    /// Authoring for the general configuration of the game
+    /// Defined key values for all entities (player, bullet, enemy)
+    /// </summary>
     public class ConfigAuthoring : MonoBehaviour
     {
         // Player
@@ -72,12 +76,20 @@ namespace Scenes.DOP
         }
     }
     
+    /// <summary>
+    /// Player singleton entity
+    /// Defines the player's speed and rotation speed
+    /// </summary>
     public struct PlayerConfig : IComponentData
     {
         public float NormalSpeed;
         public float RotationSpeed;
     }
     
+    /// <summary>
+    /// Bullet singleton entity
+    /// Defines velocity, collision, size, and spawn parameters
+    /// </summary>
     public struct BulletConfig : IComponentData
     {
         public float BulletStartVelocity;
@@ -90,6 +102,10 @@ namespace Scenes.DOP
         public bool ContinuousFiring;
     }
     
+    /// <summary>
+    /// Enemy singleton entity
+    /// Defines enemy spawn parameters
+    /// </summary>
     public struct EnemyConfig : IComponentData
     {
         public float2 MinMaxRadiusToSpawn;
